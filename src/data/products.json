@@ -1,0 +1,4 @@
+[
+  { "id": 1, "name": "Laptop", "price": 500, "description": "Portátil de alto rendimiento", "image": "" },
+  { "id": 2, "name": "Phone", "price": 100, "description": "Smartphone con gran cámara", "image": "" }
+]

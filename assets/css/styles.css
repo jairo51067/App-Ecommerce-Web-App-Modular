@@ -128,6 +128,7 @@ input:focus, textarea:focus {
     object-fit: cover; /* Esto evita que la imagen se estire; la recorta elegantemente */
     display: block;
     background-color: #f8f9fa; /* Color de fondo mientras carga */
+    border-bottom: 1px solid #eee;
 }
 
 .product-info {
@@ -267,4 +268,34 @@ header {
     margin-bottom: 15px;
     padding-bottom: 10px;
     border-bottom: 1px solid #eee;
+}
+
+@media (max-width: 768px) {
+    .checkout-container {
+        grid-template-columns: 1fr !important; /* Una sola columna en celulares */
+    }
+    
+    .order-summary {
+        order: 2; /* El resumen abajo en móviles */
+    }
+}
+
+label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+    color: var(--dark);
+}
+
+input {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-family: inherit;
+}
+
+input:focus {
+    border-color: var(--success);
+    outline: none;
+    box-shadow: 0 0 5px rgba(40, 167, 69, 0.2);
 }

@@ -36,7 +36,12 @@ export const state = {
     cart: [],
     cartOpen: false,
     searchTerm: '',
-    auth: { isAuth: false, role: null }
+    auth: { isAuth: false, role: null },
+    checkoutData: {
+        name: '',
+        address: '',
+        phone: '',
+        notes: ''}
 };
 
 /**

@@ -1,86 +1,105 @@
-import { state } from '../js/app.js';
-import { sanitize } from '../utils/sanitize.js';
-import { validEmail, validPhone } from '../utils/validator.js';
-import { storageService } from '../services/storageService.js';
+import { state } from "../js/app.js";
+import { storageService } from "../services/storageService.js";
 
-/**
- * @param {Function} renderCallback - Para regresar a la tienda al finalizar
- */
 export function Checkout(renderCallback) {
-  const div = document.createElement('div'); 
-  div.className = 'checkout';
-  
-  div.innerHTML = `
-    <h3>Finalizar Compra</h3>
-    <p>Por favor, adjunta tu comprobante de pago (PNG, máx 2MB)</p>
-    <input id="name" placeholder="Nombre completo">
-    <input id="email" placeholder="Correo electrónico">
-    <input id="phone" placeholder="Teléfono de contacto">
-    <input id="file" type="file" accept="image/png">
-  `;
+    const div = document.createElement("div");
+    div.className = "container";
 
-  const btn = document.createElement('button'); 
-  btn.textContent = 'Enviar Pedido';
+    const total = state.cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-  btn.onclick = () => {
-    // 1. Captura y Sanitización
-    const name = sanitize(document.getElementById('name').value);
-    const email = sanitize(document.getElementById('email').value);
-    const phone = sanitize(document.getElementById('phone').value);
-    const file = document.getElementById('file').files[0];
+    div.innerHTML = `
+        <div class="checkout-container" style="max-width: 800px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+            
+            <div class="order-summary" style="background: #f8f9fa; padding: 20px; border-radius: 10px;">
+                <h3>Resumen de tu compra</h3>
+                <hr>
+                ${state.cart.map(item => `
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span>${item.name} x${item.quantity}</span>
+                        <span>$${(item.price * item.quantity).toLocaleString()}</span>
+                    </div>
+                `).join('')}
+                <hr>
+                <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.2em;">
+                    <span>Total:</span>
+                    <span style="color: var(--success);">$${total.toLocaleString()}</span>
+                </div>
+            </div>
 
-    // 2. Validaciones usando nuestras Utils
-    if (!name || !email || !phone) return alert('Completa todos los campos');
-    if (!validEmail(email)) return alert('Email inválido');
-    if (!validPhone(phone)) return alert('Teléfono inválido');
-    
-    // Validación de archivo
-    if (!file || file.type !== 'image/png') return alert('Debes subir un archivo PNG');
-    if (file.size > 2 * 1024 * 1024) return alert('El archivo es demasiado pesado (máx 2MB)');
+            <div class="checkout-form">
+                <h3>Datos de Envío</h3>
+                <form id="form-checkout">
+                    <label>Nombre Completo</label>
+                    <input type="text" id="name" placeholder="Ej. Juan Pérez" required style="width:100%; margin-bottom:15px; padding:10px;">
+                    
+                    <label>Dirección de Entrega</label>
+                    <input type="text" id="address" placeholder="Calle, Ciudad, Referencia" required style="width:100%; margin-bottom:15px; padding:10px;">
+                    
+                    <label>WhatsApp / Teléfono</label>
+                    <input type="tel" id="phone" placeholder="Ej. +573001234567" required style="width:100%; margin-bottom:15px; padding:10px;">
+                    
+                    <button type="submit" class="success" style="width: 100%; padding: 15px; font-size: 1.1em; cursor: pointer;">
+                        ✅ Confirmar y Enviar por WhatsApp
+                    </button>
+                    <button type="button" id="back-to-shop" class="secondary" style="width: 100%; margin-top: 10px; background: none; border: 1px solid #ccc; color: #666;">
+                        Volver a la tienda
+                    </button>
+                </form>
+            </div>
+        </div>
+    `;
 
-    // 3. Procesamiento con FileReader
-    const reader = new FileReader();
-    reader.onload = () => {
-  const totalOrder = state.cart.reduce((acc, p) => acc + (p.price * (p.quantity || 1)), 0);
+    // --- LÓGICA DE ENVÍO ---
+    div.querySelector('#form-checkout').onsubmit = (e) => {
+        e.preventDefault();
 
-  const order = { 
-    id: crypto.randomUUID(), 
-    name, 
-    email, 
-    phone, 
-    cart: [...state.cart], // Aquí ya se guardan los productos con su quantity
-    total: totalOrder,     // Agregamos el total calculado
-    completed: false,      // Estado inicial para el sistema de check
-    proof: reader.result, 
-    createdAt: new Date().toISOString() 
-  };
+        const name = div.querySelector('#name').value;
+        const address = div.querySelector('#address').value;
+        const phone = div.querySelector('#phone').value;
 
-      // 4. Guardar usando el servicio
-      storageService.saveLead(order);
-      
-      alert('¡Gracias! Tu pedido ha sido enviado correctamente.');
-      
-      // 5. Limpieza y redirección
-      state.cart = []; 
-      state.view = 'shop'; 
-      renderCallback();
+        // 1. Guardamos el pedido en el historial (Leads)
+        const newOrder = {
+            id: Date.now(),
+            customer: name,
+            address,
+            phone,
+            items: [...state.cart],
+            total,
+            date: new Date().toLocaleDateString()
+        };
+        storageService.saveLead(newOrder);
+
+        // 2. Construimos el mensaje de WhatsApp
+        let message = `*NUEVO PEDIDO - MI TIENDA*%0A`;
+        message += `----------------------------%0A`;
+        message += `*Cliente:* ${name}%0A`;
+        message += `*Dirección:* ${address}%0A`;
+        message += `*Teléfono:* ${phone}%0A%0A`;
+        message += `*PRODUCTOS:*%0A`;
+        
+        state.cart.forEach(item => {
+            message += `- ${item.name} (x${item.quantity}) - $${(item.price * item.quantity).toLocaleString()}%0A`;
+        });
+
+        message += `----------------------------%0A`;
+        message += `*TOTAL A PAGAR: $${total.toLocaleString()}*%0A%0A`;
+        message += `_Enviado desde la Web App Modular_`;
+
+        // 3. Abrir WhatsApp (Pon tu número real aquí sin el +)
+        const myWhatsAppNumber = "5804245231898"; // CAMBIA ESTO POR TU NÚMERO
+        window.open(`https://wa.me/${myWhatsAppNumber}?text=${message}`, '_blank');
+
+        // 4. Limpiar carrito y volver al inicio
+        state.cart = [];
+        state.view = 'shop';
+        renderCallback();
+        alert("¡Pedido enviado con éxito! Serás redirigido a WhatsApp.");
     };
-    
-    reader.readAsDataURL(file);
-  };
 
-  div.appendChild(btn);
+    div.querySelector('#back-to-shop').onclick = () => {
+        state.view = 'shop';
+        renderCallback();
+    };
 
-  // Botón para cancelar y volver
-  const backBtn = document.createElement('button');
-  backBtn.textContent = 'Volver a la tienda';
-  backBtn.className = 'secondary';
-  backBtn.style.marginTop = '10px';
-  backBtn.onclick = () => {
-    state.view = 'shop';
-    renderCallback();
-  };
-  div.appendChild(backBtn);
-
-  return div;
+    return div;
 }

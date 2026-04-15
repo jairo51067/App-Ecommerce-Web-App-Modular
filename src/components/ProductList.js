@@ -14,10 +14,9 @@ export function ProductList(renderCallback) {
         <div class="product-grid">
             ${state.filtered
               .map(
-                (
-                  p,
-                ) => `<div class="product-card"><img src="${p.image && p.image !== "" ? p.image : "https://placehold.co/400x400?text=Producto+Sin+Imagen"}" class="product-img" alt="${p.name}"><div class="product-info">
-                        <h4 style="margin:0; border:none; padding:0;">${p.name}</h4>
+                (p) => `
+                    <div class="product-card">
+                        <img src="${p.image && p.image.trim() !== "" ? p.image : "https://placehold.co/600x400?text=Sin+Imagen"}" class="product-img" alt="${p.name}"onerror="this.onerror=null;this.src='https://placehold.co/600x400?text=Error+de+Carga';"
                         <p style="color: var(--secondary); font-size: 0.85em; margin: 10px 0;">${p.description || "Sin descripción"}</p>
                         <div class="price-tag">$${p.price.toLocaleString()}</div>
                         <button class="success btn-add" data-id="${p.id}" style="width:100%; padding: 10px;">

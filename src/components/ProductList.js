@@ -54,4 +54,4 @@ export function ProductList(renderCallback) {
   });
 
   return div;
-}
+} 

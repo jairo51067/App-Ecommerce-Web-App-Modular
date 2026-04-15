@@ -51,23 +51,18 @@ export function Checkout(renderCallback) {
         </div>
     `;
 
-    // --- LÓGICA DE ENVÍO ---
     div.querySelector('#form-checkout').onsubmit = (e) => {
         e.preventDefault();
 
-        const name = div.querySelector('#name').value;
-        const address = div.querySelector('#address').value;
-        const phone = div.querySelector('#phone').value;
+        const name = div.querySelector('#name').value.trim();
+        const address = div.querySelector('#address').value.trim();
+        const phone = div.querySelector('#phone').value.trim();
 
-        // --- GENERACIÓN DE DATOS DE TIEMPO Y PEDIDO ---
         const ahora = new Date();
         const fecha = ahora.toLocaleDateString(); 
         const hora = ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-        
-        // Número de pedido: Usamos los últimos 5 dígitos del timestamp para que sea corto pero único
         const nroPedido = String(Date.now()).slice(-5);
 
-        // 1. Guardamos el pedido en el historial (Leads)
         const newOrder = {
             id: nroPedido,
             customer: name,
@@ -80,32 +75,42 @@ export function Checkout(renderCallback) {
         };
         storageService.saveLead(newOrder);
 
-        // 2. Construimos el mensaje de WhatsApp con formato mejorado
-        let message = `*ORDEN Nro ${nroPedido}* 📦%0A`;
-        message += `📅 *Fecha:* ${fecha}%0A`;
-        message += `⏰ *Hora:* ${hora}%0A`;
-        message += `----------------------------%0A`;
-        message += `*Cliente:* ${name}%0A`;
-        message += `*Dirección:* ${address}%0A`;
-        message += `*WhatsApp:* ${phone}%0A%0A`;
+        // --- CONSTRUCCIÓN DEL MENSAJE PROFESIONAL ---
+        // Usamos una estructura de array y join por legibilidad
+        let textoMsg = `*ORDEN Nro ${nroPedido}* 📦\n`;
+        textoMsg += `📅 *Fecha:* ${fecha}\n`;
+        textoMsg += `⏰ *Hora:* ${hora}\n`;
+        textoMsg += `----------------------------\n`;
+        textoMsg += `👤 *Cliente:* ${name}\n`;
+        textoMsg += `📍 *Dirección:* ${address}\n`;
+        textoMsg += `📱 *WhatsApp:* ${phone}\n\n`;
         
-        message += `*PRODUCTOS:*%0A`;
+        textoMsg += `*PRODUCTOS:*\n`;
         state.cart.forEach(item => {
-            message += `- ${item.name} (x${item.quantity}) - $${(item.price * item.quantity).toLocaleString()}%0A`;
+            textoMsg += `- ${item.name} (x${item.quantity}) - $${(item.price * item.quantity).toLocaleString()}\n`;
         });
 
-        message += `----------------------------%0A`;
-        message += `*TOTAL A PAGAR: $${total.toLocaleString()}*%0A%0A`;
-        message += `_Enviado desde el catálogo modular_`;
+        textoMsg += `\n💰 *TOTAL A PAGAR: $${total.toLocaleString()}*\n`;
+        textoMsg += `----------------------------\n`;
+        textoMsg += `💳 *PASOS A SEGUIR:*\n`;
+        textoMsg += `1. ¿Necesitas nuestros métodos de pago? (Solicítalos aquí).\n`;
+        textoMsg += `2. Indica tu método de pago y detalles adicionales.\n`;
+        textoMsg += `3. *Adjunta tu comprobante de pago* en este chat.\n`;
+        textoMsg += `----------------------------\n`;
+        textoMsg += `_Confirmaremos tu pago y te notificaremos cuando tu pedido esté listo._\n`;
+        textoMsg += `¡Gracias por tu compra! ✨`;
 
-        // 3. Abrir WhatsApp (Número corregido para Venezuela)
+        // 3. ENCRIPTAR PARA URL (Seguridad para caracteres especiales)
+        const encodedMessage = encodeURIComponent(textoMsg);
         const myWhatsAppNumber = "584245231898"; 
-        window.open(`https://wa.me/${myWhatsAppNumber}?text=${message}`, '_blank');
 
-        // 4. Limpiar carrito y volver al inicio
+        // 4. Limpiar carrito ANTES de salir
         state.cart = [];
         state.view = 'shop';
         renderCallback();
+
+        // 5. Abrir WhatsApp
+        window.open(`https://wa.me/${myWhatsAppNumber}?text=${encodedMessage}`, '_blank');
         alert(`¡Pedido #${nroPedido} generado con éxito! Redirigiendo a WhatsApp...`);
     };
 

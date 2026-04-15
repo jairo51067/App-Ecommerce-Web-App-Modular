@@ -10,15 +10,39 @@ export function AdminPanel(renderCallback) {
   let editingId = null;
   const leads = storageService.getLeads();
 
-  // --- 1. RESUMEN DE ESTADÍSTICAS (Nuevo) ---
+  // --- 0. BARRA DE SINCRONIZACIÓN ---
+  const syncBar = document.createElement("div");
+  syncBar.style.cssText = "display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-bottom:15px; font-size:0.85em; color:var(--secondary);";
+  
+  const lastSync = localStorage.getItem("lastSync_Admin") || "No sincronizado";
+
+  syncBar.innerHTML = `
+      <span>Última actualización: <b id="sync-time">${lastSync}</b></span>
+      <button id="btn-sync" style="padding: 5px 12px; cursor: pointer; border-radius: 4px; border: 1px solid var(--primary); background: white; color: var(--primary); font-weight: bold; transition: 0.3s;">
+          🔄 Sincronizar
+      </button>
+  `;
+
+  syncBar.querySelector("#btn-sync").onclick = (e) => {
+      const btn = e.currentTarget;
+      btn.style.transform = "rotate(360deg)";
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      localStorage.setItem("lastSync_Admin", now);
+      
+      setTimeout(() => {
+          renderCallback(); 
+      }, 300);
+  };
+
+  // --- 1. RESUMEN DE ESTADÍSTICAS ---
   const stats = document.createElement("div");
   stats.className = "row";
   stats.style.display = "flex";
   stats.style.gap = "15px";
   stats.style.marginBottom = "20px";
-  
-  const totalVentas = leads.reduce((acc, curr) => acc + (curr.total || 0), 0);
-  const pendientes = leads.filter(l => !l.completed).length;
+
+  const totalVentas = leads.filter(l => !l.deleted).reduce((acc, curr) => acc + (curr.total || 0), 0);
+  const pendientes = leads.filter((l) => !l.completed && !l.deleted).length;
 
   stats.innerHTML = `
     <div class="card" style="flex: 1; margin-bottom: 0; text-align: center; border-bottom: 4px solid var(--primary);">
@@ -49,10 +73,7 @@ export function AdminPanel(renderCallback) {
   const exportLeadsBtn = document.createElement("button");
   exportLeadsBtn.className = "success";
   exportLeadsBtn.textContent = "📥 Exportar Ventas";
-  exportLeadsBtn.onclick = () => {
-    const cleanLeads = leads.map(({ proof, ...rest }) => rest);
-    exportService.toCSV(cleanLeads, "reporte_ventas");
-  };
+  exportLeadsBtn.onclick = () => exportService.toCSV(leads, "reporte_ventas");
 
   const exportProductsBtn = document.createElement("button");
   exportProductsBtn.className = "secondary";
@@ -61,7 +82,7 @@ export function AdminPanel(renderCallback) {
 
   const logout = document.createElement("button");
   logout.className = "danger";
-  logout.textContent = "Sair";
+  logout.textContent = "Salir";
   logout.onclick = () => {
     state.auth.isAuth = false;
     state.view = "shop";
@@ -141,7 +162,7 @@ export function AdminPanel(renderCallback) {
         <tr>
           <th>Producto / Descripción</th>
           <th>Precio</th>
-          <th>Acciones</th>
+          <th style="text-align:center">Acciones</th>
         </tr>
       </thead>
       <tbody>
@@ -152,7 +173,7 @@ export function AdminPanel(renderCallback) {
                 <small style="color:var(--secondary)">${p.description || "Sin descripción"}</small>
             </td>
             <td>$${p.price}</td>
-            <td style="text-align:right">
+            <td style="text-align:center">
                 <button class="secondary btn-edit" data-id="${p.id}">Editar</button>
                 <button class="danger btn-del" data-id="${p.id}">Borrar</button>
             </td>
@@ -162,11 +183,9 @@ export function AdminPanel(renderCallback) {
     </table>
   `;
 
-  // Listener Productos
   productsWrap.addEventListener("click", (e) => {
     const id = String(e.target.getAttribute("data-id"));
     if (!id || id === "null") return;
-
     if (e.target.classList.contains("btn-del")) {
       if (confirm("¿Eliminar producto definitivamente?")) {
         state.products = state.products.filter((p) => String(p.id) !== id);
@@ -175,7 +194,6 @@ export function AdminPanel(renderCallback) {
         renderCallback();
       }
     }
-
     if (e.target.classList.contains("btn-edit")) {
       const p = state.products.find((x) => String(x.id) === id);
       if (p) {
@@ -190,7 +208,7 @@ export function AdminPanel(renderCallback) {
     }
   });
 
-  // --- 5. TABLA DE LEADS ---
+  // --- 5. TABLA DE LEADS (CON BOTONES BLINDADOS) ---
   const leadsWrap = document.createElement("div");
   leadsWrap.className = "card";
   leadsWrap.innerHTML = `
@@ -198,33 +216,49 @@ export function AdminPanel(renderCallback) {
     <table>
       <thead>
         <tr>
-          <th>Cliente / Contacto</th>
-          <th>Pedido</th>
-          <th>Total</th>
-          <th>Acciones</th>
+          <th style="text-align: left; padding: 10px;">Folio / Cliente</th>
+          <th style="text-align: left; padding: 10px;">Pedido</th>
+          <th style="text-align: left; padding: 10px;">Total</th>
+          <th style="text-align: center; padding: 10px;">Estado / Auditoría</th>
+          <th style="text-align: right; padding: 10px;">Acciones</th>
         </tr>
       </thead>
       <tbody>
-        ${leads.map((l) => `
-          <tr style="border-left: 5px solid ${l.completed ? 'var(--success)' : 'var(--warning)'}">
-            <td>
-                <strong>${l.name}</strong><br>
-                <small>${new Date(l.createdAt).toLocaleDateString()}</small><br>
-                <small style="color: var(--primary)">${l.phone || ""}</small>
+        ${leads.map((l) => {
+          const isDeleted = l.deleted === true;
+          return `
+          <tr style="border-left: 5px solid ${isDeleted ? "#666" : (l.completed ? "var(--success)" : "var(--warning)")};
+                     ${isDeleted ? "text-decoration: line-through; opacity: 0.5; background: #f2f2f2;" : ""}">
+            <td style="padding: 10px;">
+                <strong>#${l.id}</strong> - <strong>${l.customer}</strong>
+                ${isDeleted ? `<br><small style="color:red; font-weight:bold; text-decoration:none !important; display:inline-block;">[PEDIDO ELIMINADO POR ADMINISTRADOR]</small>` : ""}
+                <br><small>${l.date || ''} ${l.time || ''}</small>
             </td>
-            <td style="font-size: 0.85em;">
-                ${l.cart ? l.cart.map(item => `• ${item.name} (x${item.quantity || 1})`).join('<br>') : 'Sin detalle'}
+            <td style="font-size: 0.85em; padding: 10px;">
+                ${l.items ? l.items.map((item) => `• ${item.name} (x${item.quantity})`).join("<br>") : "Sin detalle"}
             </td>
-            <td><strong>$${(l.total || 0).toLocaleString()}</strong></td>
-            <td style="text-align:right">
-                <button class="btn-check-lead" data-id="${l.id}" style="background:${l.completed ? 'var(--success)' : 'var(--warning)'}; color: white;">
-                    ${l.completed ? '✅' : '⏳'}
-                </button>
-                <button class="secondary btn-view" data-id="${l.id}">📄 PNG</button>
-                <button class="danger btn-del-lead" data-id="${l.id}">🗑️</button>
+            <td style="padding: 10px;">
+                <strong>$${(l.total || 0).toLocaleString()}</strong>
+            </td>
+            <td style="padding: 10px; text-align: center;">
+                ${isDeleted ? `<small>Anulado por:<br><b>${l.deletedBy}</b></small>` : `
+                    <button class="${l.completed ? '' : 'btn-check-lead'}" data-id="${l.id}" 
+                        ${l.completed ? 'disabled' : ''}
+                        style="background:${l.completed ? "var(--success)" : "#ccc"}; color: black; border:none; padding: 5px 10px; border-radius:4px; 
+                        cursor:${l.completed ? "default" : "pointer"}; opacity:${l.completed ? "0.8" : "1"};">
+                        ${l.completed ? "✅ Ejecutado" : "⏳ Marcar OK"}
+                    </button>
+                    ${l.completedBy ? `<br><small style="font-size:0.75em; color: #666;">Marcado por: <b>${l.completedBy}</b></small>` : ""}
+                `}
+            </td>
+            <td style="text-align:right; padding: 10px;">
+                ${isDeleted 
+                  ? `<button class="btn-restore-lead" data-id="${l.id}" style="background:var(--primary); color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">↺ Restablecer</button>` 
+                  : `<button class="danger btn-del-lead" data-id="${l.id}" style="border:none; padding: 5px 10px; border-radius:4px; cursor:pointer;" ${l.completed ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''}>🗑️</button>`
+                }
             </td>
           </tr>
-        `).join("")}
+        `}).join("")}
       </tbody>
     </table>
   `;
@@ -233,32 +267,57 @@ export function AdminPanel(renderCallback) {
     const id = String(e.target.getAttribute("data-id"));
     if (!id || id === "null") return;
 
-    if (e.target.classList.contains("btn-view")) {
-      const lead = leads.find((l) => String(l.id) === id);
-      if (lead && lead.proof) {
-        const win = window.open("");
-        win.document.write(`<html><body style="margin:0; background:#333; display:flex; justify-content:center; align-items:center;"><img src="${lead.proof}" style="max-height:100vh;"></body></html>`);
-      }
-    }
-
+    // --- LÓGICA DE ANULAR (Solo si no está completado) ---
     if (e.target.classList.contains("btn-del-lead")) {
-      if (confirm("¿Eliminar registro de venta?")) {
-        const updatedLeads = leads.filter((l) => String(l.id) !== id);
-        localStorage.setItem("leads", JSON.stringify(updatedLeads));
-        renderCallback();
+      if (confirm("¿Anular este pedido? La evidencia quedará tachada en el sistema.")) {
+        const currentLeads = storageService.getLeads();
+        const index = currentLeads.findIndex((l) => String(l.id) === id);
+        if (index !== -1) {
+            currentLeads[index].deleted = true;
+            currentLeads[index].deletedBy = "Administrador";
+            localStorage.setItem("leads", JSON.stringify(currentLeads));
+            renderCallback();
+        }
       }
     }
 
+    // --- LÓGICA DE RESTABLECER ---
+    if (e.target.classList.contains("btn-restore-lead")) {
+        if (confirm("¿Deseas restablecer este pedido al historial activo?")) {
+            const currentLeads = storageService.getLeads();
+            const index = currentLeads.findIndex((l) => String(l.id) === id);
+            if (index !== -1) {
+                currentLeads[index].deleted = false;
+                currentLeads[index].deletedBy = null;
+                localStorage.setItem("leads", JSON.stringify(currentLeads));
+                renderCallback();
+            }
+        }
+    }
+
+    // --- LÓGICA DE COMPLETAR (BLINDADA) ---
     if (e.target.classList.contains("btn-check-lead")) {
-      const index = leads.findIndex((l) => String(l.id) === id);
+      const currentLeads = storageService.getLeads();
+      const index = currentLeads.findIndex((l) => String(l.id) === id);
+      
       if (index !== -1) {
-        leads[index].completed = !leads[index].completed;
-        localStorage.setItem("leads", JSON.stringify(leads));
-        renderCallback();
+        const pedido = currentLeads[index];
+        
+        // Verificación extra de seguridad
+        if (pedido.completed) return; 
+
+        const confirmacion = confirm(`¿Confirmas que el pedido #${pedido.id} ha sido procesado?\n\nEsta acción es irreversible y quedará registrada a tu nombre.`);
+        
+        if (confirmacion) {
+            pedido.completed = true;
+            pedido.completedBy = "Administrador";
+            localStorage.setItem("leads", JSON.stringify(currentLeads));
+            renderCallback();
+        }
       }
     }
   });
 
-  div.append(stats, top, addBox, productsWrap, leadsWrap);
+  div.append(syncBar, stats, top, addBox, productsWrap, leadsWrap);
   return div;
-} 
+}

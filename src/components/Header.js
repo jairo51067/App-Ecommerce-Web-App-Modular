@@ -16,30 +16,38 @@ export function Header(renderCallback) {
                 🛒 <span class="cart-count">${cartCount}</span>
             </div>
             <button class="secondary" id="go-login">
-                ${state.auth?.isAuth ? 'Panel' : 'Admin'}
+                ${state.auth?.isAuth ? 'Panel' : 'Entrar'}
             </button>
         </div>
     `;
 
-    // BUSCADOR: Para que no se rompa, solo renderizamos si el valor cambia realmente
+    // --- BUSCADOR EN TIEMPO REAL ---
     const input = header.querySelector('#search-input');
     input.addEventListener('input', (e) => {
         state.searchTerm = e.target.value.toLowerCase();
+        
+        // Filtramos por nombre y descripción para mayor precisión
         state.filtered = state.products.filter(p => 
-            p.name.toLowerCase().includes(state.searchTerm)
+            p.name.toLowerCase().includes(state.searchTerm) || 
+            (p.description && p.description.toLowerCase().includes(state.searchTerm))
         );
         
-        // Renderizamos solo si estamos en la tienda
-        if (state.view === 'shop') renderCallback();
-        
-        // Devolvemos el foco al final
-        const nuevoInput = document.getElementById('search-input');
-        if (nuevoInput) {
-            nuevoInput.focus();
-            nuevoInput.setSelectionRange(nuevoInput.value.length, nuevoInput.value.length);
+        // Si estamos en la tienda, actualizamos la vista
+        if (state.view === 'shop') {
+            renderCallback();
+            
+            // Re-enfocamos el input y ponemos el cursor al final
+            const nuevoInput = document.getElementById('search-input');
+            if (nuevoInput) {
+                nuevoInput.focus();
+                const val = nuevoInput.value;
+                nuevoInput.value = ''; // Truco para resetear posición
+                nuevoInput.value = val;
+            }
         }
     });
 
+    // --- NAVEGACIÓN ---
     header.querySelector('#open-cart-btn').onclick = () => {
         state.cartOpen = true;
         renderCallback();
@@ -47,13 +55,21 @@ export function Header(renderCallback) {
 
     header.querySelector('#go-shop').onclick = () => {
         state.view = 'shop';
+        state.searchTerm = ''; // Limpiamos al volver al inicio
+        state.filtered = [...state.products];
         renderCallback();
     };
 
     header.querySelector('#go-login').onclick = () => {
-        state.view = 'login';
+        if (state.auth?.isAuth) {
+            // Si ya está logueado, lo mandamos a su vista según su rol
+            if (state.auth.role === 'admin') state.view = 'admin';
+            else if (state.auth.role === 'gerente' || state.auth.role === 'superuser') state.view = 'orders';
+        } else {
+            state.view = 'login';
+        }
         renderCallback();
     };
 
     return header;
-}
+} 

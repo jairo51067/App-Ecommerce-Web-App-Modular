@@ -38,7 +38,7 @@ export function OrderPanel(renderCallback) {
     header.style.cssText = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;";
     header.innerHTML = `
         <h2>Panel de Pedidos (Gerencia)</h2>
-        <button class="danger" id="logout-btn">Salir</button>
+        <button class="danger" id="logout-btn">Salir (Gerencia) </button> 
     `;
 
     // --- 2. CONTENIDO DE LA TABLA ---

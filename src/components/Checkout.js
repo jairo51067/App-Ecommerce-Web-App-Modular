@@ -13,12 +13,14 @@ export function Checkout(renderCallback) {
             <div class="order-summary" style="background: #f8f9fa; padding: 20px; border-radius: 10px;">
                 <h3>Resumen de tu compra</h3>
                 <hr>
-                ${state.cart.map(item => `
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                        <span>${item.name} x${item.quantity}</span>
-                        <span>$${(item.price * item.quantity).toLocaleString()}</span>
-                    </div>
-                `).join('')}
+                <div style="max-height: 300px; overflow-y: auto;">
+                    ${state.cart.map(item => `
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <span>${item.name} x${item.quantity}</span>
+                            <span>$${(item.price * item.quantity).toLocaleString()}</span>
+                        </div>
+                    `).join('')}
+                </div>
                 <hr>
                 <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.2em;">
                     <span>Total:</span>
@@ -36,7 +38,7 @@ export function Checkout(renderCallback) {
                     <input type="text" id="address" placeholder="Calle, Ciudad, Referencia" required style="width:100%; margin-bottom:15px; padding:10px;">
                     
                     <label>WhatsApp / Teléfono</label>
-                    <input type="tel" id="phone" placeholder="Ej. +573001234567" required style="width:100%; margin-bottom:15px; padding:10px;">
+                    <input type="tel" id="phone" placeholder="Ej. 04241234567" required style="width:100%; margin-bottom:15px; padding:10px;">
                     
                     <button type="submit" class="success" style="width: 100%; padding: 15px; font-size: 1.1em; cursor: pointer;">
                         ✅ Confirmar y Enviar por WhatsApp
@@ -57,43 +59,54 @@ export function Checkout(renderCallback) {
         const address = div.querySelector('#address').value;
         const phone = div.querySelector('#phone').value;
 
+        // --- GENERACIÓN DE DATOS DE TIEMPO Y PEDIDO ---
+        const ahora = new Date();
+        const fecha = ahora.toLocaleDateString(); 
+        const hora = ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+        
+        // Número de pedido: Usamos los últimos 5 dígitos del timestamp para que sea corto pero único
+        const nroPedido = String(Date.now()).slice(-5);
+
         // 1. Guardamos el pedido en el historial (Leads)
         const newOrder = {
-            id: Date.now(),
+            id: nroPedido,
             customer: name,
             address,
             phone,
             items: [...state.cart],
             total,
-            date: new Date().toLocaleDateString()
+            date: fecha,
+            time: hora
         };
         storageService.saveLead(newOrder);
 
-        // 2. Construimos el mensaje de WhatsApp
-        let message = `*NUEVO PEDIDO - MI TIENDA*%0A`;
+        // 2. Construimos el mensaje de WhatsApp con formato mejorado
+        let message = `*ORDEN Nro ${nroPedido}* 📦%0A`;
+        message += `📅 *Fecha:* ${fecha}%0A`;
+        message += `⏰ *Hora:* ${hora}%0A`;
         message += `----------------------------%0A`;
         message += `*Cliente:* ${name}%0A`;
         message += `*Dirección:* ${address}%0A`;
-        message += `*Teléfono:* ${phone}%0A%0A`;
-        message += `*PRODUCTOS:*%0A`;
+        message += `*WhatsApp:* ${phone}%0A%0A`;
         
+        message += `*PRODUCTOS:*%0A`;
         state.cart.forEach(item => {
             message += `- ${item.name} (x${item.quantity}) - $${(item.price * item.quantity).toLocaleString()}%0A`;
         });
 
         message += `----------------------------%0A`;
         message += `*TOTAL A PAGAR: $${total.toLocaleString()}*%0A%0A`;
-        message += `_Enviado desde la Web App Modular_`;
+        message += `_Enviado desde el catálogo modular_`;
 
-        // 3. Abrir WhatsApp (Pon tu número real aquí sin el +)
-        const myWhatsAppNumber = "5804245231898"; // CAMBIA ESTO POR TU NÚMERO
+        // 3. Abrir WhatsApp (Número corregido para Venezuela)
+        const myWhatsAppNumber = "584245231898"; 
         window.open(`https://wa.me/${myWhatsAppNumber}?text=${message}`, '_blank');
 
         // 4. Limpiar carrito y volver al inicio
         state.cart = [];
         state.view = 'shop';
         renderCallback();
-        alert("¡Pedido enviado con éxito! Serás redirigido a WhatsApp.");
+        alert(`¡Pedido #${nroPedido} generado con éxito! Redirigiendo a WhatsApp...`);
     };
 
     div.querySelector('#back-to-shop').onclick = () => {

@@ -107,6 +107,7 @@ input:focus, textarea:focus {
 }
 
 .product-card {
+    height: 100%;
     background: white;
     border-radius: 12px;
     overflow: hidden;
@@ -123,9 +124,10 @@ input:focus, textarea:focus {
 
 .product-img {
     width: 100%;
-    height: 200px;
-    object-fit: cover;
-    background: #f9f9f9;
+    height: 250px; /* Altura fija para que todas las cards midan lo mismo */
+    object-fit: cover; /* Esto evita que la imagen se estire; la recorta elegantemente */
+    display: block;
+    background-color: #f8f9fa; /* Color de fondo mientras carga */
 }
 
 .product-info {

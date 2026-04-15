@@ -14,30 +14,63 @@ mainContent.id = "main-content";
 app.append(headerContainer, mainContent);
 
 function render() {
-    // 1. Limpieza total para evitar residuos
+    // 1. Limpieza total
     headerContainer.innerHTML = '';
     mainContent.innerHTML = '';
 
-    // 2. Renderizar Header y Carrito (Siempre presentes)
+    // 2. Lógica de Protección de Rutas (Middleware)
+    const protectedRoutes = ['admin', 'orders'];
+    
+    // Si la vista es protegida y no está logueado...
+    if (protectedRoutes.includes(state.view) && !state.auth.isAuth) {
+        state.view = 'login'; 
+    }
+
+    // Protección por Rol específico
+    if (state.view === 'admin' && state.auth.role === 'gerente') {
+        // Un gerente no debe entrar al panel de administración/inventario
+        state.view = 'orders';
+    }
+
+    if (state.view === 'orders' && state.auth.role === 'admin') {
+        // Un admin no debería entrar al panel de auditoría de gerencia 
+        // (A menos que sea superuser, que saltará estas reglas)
+    }
+
+    // El Superusuario siempre tiene paso libre
+    if (state.auth.role === 'superuser') {
+        // No aplicamos restricciones
+    }
+
+    // 3. Renderizar Header y Carrito (Siempre presentes)
     headerContainer.appendChild(Header(render));
     mainContent.appendChild(Cart(render));
 
-    // 3. Enrutador seguro
+    // 4. Enrutador seguro
     try {
-        if (state.view === 'shop') {
-            mainContent.appendChild(ProductList(render));
-        } else if (state.view === 'checkout') {
-            mainContent.appendChild(Checkout(render));
-        } else if (state.view === 'admin') {
-            mainContent.appendChild(AdminPanel(render));
-        } else if (state.view === 'orders') {
-            mainContent.appendChild(OrderPanel(render));
-        } else if (state.view === 'login') {
-            mainContent.appendChild(Login(render));
+        switch (state.view) {
+            case 'shop':
+                mainContent.appendChild(ProductList(render));
+                break;
+            case 'checkout':
+                mainContent.appendChild(Checkout(render));
+                break;
+            case 'admin':
+                mainContent.appendChild(AdminPanel(render));
+                break;
+            case 'orders':
+                mainContent.appendChild(OrderPanel(render));
+                break;
+            case 'login':
+                mainContent.appendChild(Login(render));
+                break;
+            default:
+                mainContent.appendChild(ProductList(render));
         }
     } catch (error) {
-        console.error("Error renderizando vista:", error);
-        state.view = 'shop'; // Emergencia: volver a la tienda
+        console.error("Error crítico de navegación:", error);
+        state.view = 'shop';
+        render();
     }
 }
 

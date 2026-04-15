@@ -1,4 +1,4 @@
-import { state } from "../js/app.js";
+import { state, addToStateCart } from "../js/app.js"; // <--- Añade esto
 
 export function ProductList(renderCallback) {
   const div = document.createElement("div");
@@ -40,13 +40,10 @@ export function ProductList(renderCallback) {
       const product = state.products.find((p) => String(p.id) === String(id));
 
       if (product) {
-        const inCart = state.cart.find((item) => String(item.id) === String(id));
-        if (inCart) {
-          inCart.quantity++;
-        } else {
-          state.cart.push({ ...product, quantity: 1 });
-        }
-        // Abrimos el carrito automáticamente para feedback visual
+        // LLAMADA CLAVE: Usamos la función de app.js
+        addToStateCart(product); 
+        
+        // Abrimos el carrito si quieres, pero ahora el Toast sí saldrá
         state.cartOpen = true; 
         renderCallback();
       }

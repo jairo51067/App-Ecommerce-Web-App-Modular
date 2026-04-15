@@ -1,4 +1,5 @@
 import { storageService } from '../services/storageService.js';
+import { notifier } from '../services/notifier.js';
 
 // Definimos los productos aquí mismo. 
 // Esto evita el error 404 de products.json
@@ -53,6 +54,7 @@ export const state = {
  * @param {Object} product 
  */
 export function addToStateCart(product) {
+    console.log("Intentando mostrar Toast para:", product.name); // <--- AÑADE ESTO
     // IMPORTANTE: Aseguramos que el ID se compare como String para evitar errores de tipo
     const existingProduct = state.cart.find(item => String(item.id) === String(product.id));
     
@@ -62,4 +64,7 @@ export function addToStateCart(product) {
         // Clonamos para evitar mutaciones inesperadas
         state.cart.push({ ...product, quantity: 1 });
     }
+    // --- FEEDBACK VISUAL ---
+    notifier.show(`🛒 ${product.name} añadido`);
+    
 }  

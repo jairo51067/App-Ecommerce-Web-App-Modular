@@ -9,6 +9,9 @@ export function AdminPanel(renderCallback) {
 
   let editingId = null;
   const leads = storageService.getLeads();
+  
+  // DETECTOR DE RANGO: Verificamos si es Superusuario
+  const isSuper = state.auth.role === "superuser";
 
   // --- 0. BARRA DE SINCRONIZACIÓN ---
   const syncBar = document.createElement("div");
@@ -17,6 +20,7 @@ export function AdminPanel(renderCallback) {
   const lastSync = localStorage.getItem("lastSync_Admin") || "No sincronizado";
 
   syncBar.innerHTML = `
+      ${isSuper ? '<b style="color:var(--primary); margin-right:auto;">⚡ MODO SUPERUSUARIO (Control Total)</b>' : ''}
       <span>Última actualización: <b id="sync-time">${lastSync}</b></span>
       <button id="btn-sync" style="padding: 5px 12px; cursor: pointer; border-radius: 4px; border: 1px solid var(--primary); background: white; color: var(--primary); font-weight: bold; transition: 0.3s;">
           🔄 Sincronizar
@@ -28,10 +32,7 @@ export function AdminPanel(renderCallback) {
       btn.style.transform = "rotate(360deg)";
       const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       localStorage.setItem("lastSync_Admin", now);
-      
-      setTimeout(() => {
-          renderCallback(); 
-      }, 300);
+      setTimeout(() => renderCallback(), 300);
   };
 
   // --- 1. RESUMEN DE ESTADÍSTICAS ---
@@ -82,7 +83,7 @@ export function AdminPanel(renderCallback) {
 
   const logout = document.createElement("button");
   logout.className = "danger";
-  logout.textContent = "Salir";
+  logout.textContent = `Salir (${state.auth.username})`;
   logout.onclick = () => {
     state.auth.isAuth = false;
     state.view = "shop";
@@ -208,7 +209,7 @@ export function AdminPanel(renderCallback) {
     }
   });
 
-  // --- 5. TABLA DE LEADS (CON BOTONES BLINDADOS) ---
+  // --- 5. TABLA DE LEADS (CON LÓGICA DE SUPERUSUARIO) ---
   const leadsWrap = document.createElement("div");
   leadsWrap.className = "card";
   leadsWrap.innerHTML = `
@@ -226,35 +227,39 @@ export function AdminPanel(renderCallback) {
       <tbody>
         ${leads.map((l) => {
           const isDeleted = l.deleted === true;
+          // SUPERPODER: El botón solo se bloquea si está completado Y NO eres superusuario
+          const canToggle = !l.completed || isSuper;
+          const canDelete = !l.completed || isSuper;
+
           return `
           <tr style="border-left: 5px solid ${isDeleted ? "#666" : (l.completed ? "var(--success)" : "var(--warning)")};
                      ${isDeleted ? "text-decoration: line-through; opacity: 0.5; background: #f2f2f2;" : ""}">
             <td style="padding: 10px;">
                 <strong>#${l.id}</strong> - <strong>${l.customer}</strong>
-                ${isDeleted ? `<br><small style="color:red; font-weight:bold; text-decoration:none !important; display:inline-block;">[PEDIDO ELIMINADO POR ADMINISTRADOR]</small>` : ""}
+                ${isDeleted ? `<br><small style="color:red; font-weight:bold; text-decoration:none !important;">[ANULADO POR ${l.deletedBy}]</small>` : ""}
                 <br><small>${l.date || ''} ${l.time || ''}</small>
             </td>
             <td style="font-size: 0.85em; padding: 10px;">
                 ${l.items ? l.items.map((item) => `• ${item.name} (x${item.quantity})`).join("<br>") : "Sin detalle"}
             </td>
-            <td style="padding: 10px;">
-                <strong>$${(l.total || 0).toLocaleString()}</strong>
-            </td>
+            <td style="padding: 10px;"><strong>$${(l.total || 0).toLocaleString()}</strong></td>
             <td style="padding: 10px; text-align: center;">
                 ${isDeleted ? `<small>Anulado por:<br><b>${l.deletedBy}</b></small>` : `
-                    <button class="${l.completed ? '' : 'btn-check-lead'}" data-id="${l.id}" 
-                        ${l.completed ? 'disabled' : ''}
-                        style="background:${l.completed ? "var(--success)" : "#ccc"}; color: black; border:none; padding: 5px 10px; border-radius:4px; 
-                        cursor:${l.completed ? "default" : "pointer"}; opacity:${l.completed ? "0.8" : "1"};">
+                    <button class="${canToggle ? 'btn-check-lead' : ''}" data-id="${l.id}" 
+                        ${canToggle ? '' : 'disabled'}
+                        style="background:${l.completed ? "var(--success)" : "#ccc"}; color: ${l.completed ? 'white' : 'black'}; border:none; padding: 5px 10px; border-radius:4px; 
+                        cursor:${canToggle ? "pointer" : "default"}; opacity:${canToggle ? "1" : "0.5"};">
                         ${l.completed ? "✅ Ejecutado" : "⏳ Marcar OK"}
                     </button>
-                    ${l.completedBy ? `<br><small style="font-size:0.75em; color: #666;">Marcado por: <b>${l.completedBy}</b></small>` : ""}
+                    ${l.completedBy ? `<br><small style="font-size:0.75em; color: #666;">Por: <b>${l.completedBy}</b></small>` : ""}
                 `}
             </td>
             <td style="text-align:right; padding: 10px;">
                 ${isDeleted 
                   ? `<button class="btn-restore-lead" data-id="${l.id}" style="background:var(--primary); color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">↺ Restablecer</button>` 
-                  : `<button class="danger btn-del-lead" data-id="${l.id}" style="border:none; padding: 5px 10px; border-radius:4px; cursor:pointer;" ${l.completed ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''}>🗑️</button>`
+                  : `<button class="danger btn-del-lead" data-id="${l.id}" 
+                        ${canDelete ? '' : 'disabled'}
+                        style="border:none; padding: 5px 10px; border-radius:4px; cursor:pointer; opacity:${canDelete ? '1' : '0.3'}">🗑️</button>`
                 }
             </td>
           </tr>
@@ -264,57 +269,58 @@ export function AdminPanel(renderCallback) {
   `;
 
   leadsWrap.addEventListener("click", (e) => {
-    const id = String(e.target.getAttribute("data-id"));
+    const id = String(e.target.closest("button")?.getAttribute("data-id"));
     if (!id || id === "null") return;
 
-    // --- LÓGICA DE ANULAR (Solo si no está completado) ---
-    if (e.target.classList.contains("btn-del-lead")) {
-      if (confirm("¿Anular este pedido? La evidencia quedará tachada en el sistema.")) {
-        const currentLeads = storageService.getLeads();
-        const index = currentLeads.findIndex((l) => String(l.id) === id);
-        if (index !== -1) {
-            currentLeads[index].deleted = true;
-            currentLeads[index].deletedBy = "Administrador";
-            localStorage.setItem("leads", JSON.stringify(currentLeads));
-            renderCallback();
-        }
-      }
-    }
+    const currentLeads = storageService.getLeads();
+    const index = currentLeads.findIndex((l) => String(l.id) === id);
+    if (index === -1) return;
+    const pedido = currentLeads[index];
 
-    // --- LÓGICA DE RESTABLECER ---
-    if (e.target.classList.contains("btn-restore-lead")) {
-        if (confirm("¿Deseas restablecer este pedido al historial activo?")) {
-            const currentLeads = storageService.getLeads();
-            const index = currentLeads.findIndex((l) => String(l.id) === id);
-            if (index !== -1) {
-                currentLeads[index].deleted = false;
-                currentLeads[index].deletedBy = null;
+    // --- ACCIÓN: COMPLETAR / REVERTIR ---
+    if (e.target.classList.contains("btn-check-lead")) {
+        // Lógica de reversión exclusiva Superuser
+        if (pedido.completed && isSuper) {
+            if (confirm("MODO MAESTRO: ¿Deseas reabrir este pedido y eliminar la marca de ejecución?")) {
+                pedido.completed = false;
+                pedido.completedBy = null;
                 localStorage.setItem("leads", JSON.stringify(currentLeads));
                 renderCallback();
             }
+            return;
         }
-    }
 
-    // --- LÓGICA DE COMPLETAR (BLINDADA) ---
-    if (e.target.classList.contains("btn-check-lead")) {
-      const currentLeads = storageService.getLeads();
-      const index = currentLeads.findIndex((l) => String(l.id) === id);
-      
-      if (index !== -1) {
-        const pedido = currentLeads[index];
-        
-        // Verificación extra de seguridad
-        if (pedido.completed) return; 
-
-        const confirmacion = confirm(`¿Confirmas que el pedido #${pedido.id} ha sido procesado?\n\nEsta acción es irreversible y quedará registrada a tu nombre.`);
-        
-        if (confirmacion) {
+        // Lógica normal
+        if (confirm(`¿Confirmas que el pedido #${pedido.id} ha sido procesado?`)) {
             pedido.completed = true;
-            pedido.completedBy = "Administrador";
+            pedido.completedBy = isSuper ? "SUPERUSER" : "Administrador";
             localStorage.setItem("leads", JSON.stringify(currentLeads));
             renderCallback();
         }
+    }
+
+    // --- ACCIÓN: ANULAR ---
+    if (e.target.classList.contains("btn-del-lead")) {
+      const confirmMsg = (pedido.completed && isSuper) 
+          ? "⚠️ EL PEDIDO YA ESTÁ EJECUTADO. ¿Deseas anularlo de todas formas (Modo Superusuario)?" 
+          : "¿Anular este pedido? La evidencia quedará tachada.";
+
+      if (confirm(confirmMsg)) {
+          pedido.deleted = true;
+          pedido.deletedBy = isSuper ? "SUPERUSER" : "Administrador";
+          localStorage.setItem("leads", JSON.stringify(currentLeads));
+          renderCallback();
       }
+    }
+
+    // --- ACCIÓN: RESTABLECER ---
+    if (e.target.classList.contains("btn-restore-lead")) {
+        if (confirm("¿Restablecer este pedido al historial activo?")) {
+            pedido.deleted = false;
+            pedido.deletedBy = null;
+            localStorage.setItem("leads", JSON.stringify(currentLeads));
+            renderCallback();
+        }
     }
   });
 

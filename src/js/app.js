@@ -36,7 +36,11 @@ export const state = {
     cart: [],
     cartOpen: false,
     searchTerm: '',
-    auth: { isAuth: false, role: null },
+    auth: { 
+        isAuth: false, 
+        role: null, 
+        username: '' // Añadimos esto para saber quién nos saluda
+    },
     checkoutData: {
         name: '',
         address: '',
@@ -58,4 +62,4 @@ export function addToStateCart(product) {
         // Clonamos para evitar mutaciones inesperadas
         state.cart.push({ ...product, quantity: 1 });
     }
-} 
+}  

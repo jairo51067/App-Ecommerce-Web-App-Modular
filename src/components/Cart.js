@@ -1,5 +1,7 @@
 import { state } from '../js/app.js';
 import { notifier } from '../services/notifier.js';
+// 1. IMPORTANTE: Importamos el storageService
+import { storageService } from '../services/storageService.js';
 
 export function Cart(renderCallback) {
     const overlay = document.createElement('div');
@@ -52,13 +54,10 @@ export function Cart(renderCallback) {
         </div>
     `;
 
-    // --- MANEJO DE EVENTOS  ---
     sidebar.addEventListener('click', (e) => {
-        // Detenemos la propagación para que no interfiera con otros elementos
         const target = e.target;
         const id = target.getAttribute('data-id');
 
-        // Lógica de botones con ID (Cerrar y Checkout)
         if (target.id === 'close-cart') {
             state.cartOpen = false;
             renderCallback();
@@ -74,13 +73,14 @@ export function Cart(renderCallback) {
             return;
         }
 
-        // Lógica de botones con DATA-ID (Cantidades y eliminar)
         if (!id) return;
         const item = state.cart.find(p => String(p.id) === String(id));
         if (!item) return;
 
         if (target.classList.contains('btn-plus')) {
             item.quantity++;
+            // 2. GUARDAR tras aumentar
+            storageService.saveCart(state.cart);
             renderCallback();
         }
 
@@ -91,11 +91,15 @@ export function Cart(renderCallback) {
                 state.cart = state.cart.filter(p => String(p.id) !== String(id));
                 notifier.show(`🗑️ ${item.name} eliminado`, "error");
             }
+            // 3. GUARDAR tras disminuir o eliminar
+            storageService.saveCart(state.cart);
             renderCallback();
         }
 
         else if (target.classList.contains('btn-remove')) {
             state.cart = state.cart.filter(p => String(p.id) !== String(id));
+            // 4. GUARDAR tras eliminar directamente
+            storageService.saveCart(state.cart);
             notifier.show("Producto eliminado", "error");
             renderCallback();
         }
@@ -110,4 +114,4 @@ export function Cart(renderCallback) {
     container.appendChild(overlay);
     container.appendChild(sidebar);
     return container;
-} 
+}

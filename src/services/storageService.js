@@ -41,5 +41,21 @@ export const storageService = {
   // Alias para mantener compatibilidad si lo usas en otros componentes
   loadProducts() {
     return this.getProducts();
-  }
+  },
+  getCart() {
+    const data = localStorage.getItem("shop_cart");
+    try {
+      return data ? JSON.parse(data) : [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  saveCart(cart) {
+    localStorage.setItem("shop_cart", JSON.stringify(cart));
+  },
+
+  clearCart() {
+    localStorage.removeItem("shop_cart");
+  },
 };

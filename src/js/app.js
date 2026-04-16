@@ -79,8 +79,7 @@ const defaultProducts = [
     id: "p10",
     name: "Tarjeta Madre ASUS ROG DDR3",
     price: 2800,
-    description:
-      "Tarjeta madre de alta gama para sistemas gaming.",
+    description: "Tarjeta madre de alta gama para sistemas gaming.",
     image:
       "https://media.istockphoto.com/id/1160419586/es/foto/primer-plano-de-la-placa-madre-de-la-computadora-con-la-cpu-instalada.webp?a=1&b=1&s=612x612&w=0&k=20&c=bSg-PR_4Jji4hpndgIPdrghr_Asn2Y_qjzlYwfCTWm4=",
   },
@@ -88,8 +87,7 @@ const defaultProducts = [
     id: "p11",
     name: "Procesadores Intel Core i9",
     price: 2800,
-    description:
-      "Procesadores de alta gama para sistemas gaming.",
+    description: "Procesadores de alta gama para sistemas gaming.",
     image:
       "https://media.istockphoto.com/id/1076524688/es/foto/microprocesadores.webp?a=1&b=1&s=612x612&w=0&k=20&c=4n4m-A6GugNe0wUROsyV7CDEOZKPPHbxNeht-DQ95hU=",
   },
@@ -97,8 +95,7 @@ const defaultProducts = [
     id: "p12",
     name: "Cases Gaming RGB",
     price: 2800,
-    description:
-      "Cases de alta gama para sistemas gaming.",
+    description: "Cases de alta gama para sistemas gaming.",
     image:
       "https://plus.unsplash.com/premium_photo-1671439429636-6d8d66247143?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8Y2FzZSUyMGFkbSUyMHBjfGVufDB8fDB8fHww",
   },
@@ -108,6 +105,7 @@ const defaultProducts = [
 const savedProducts = storageService.getProducts();
 const initialProducts =
   savedProducts.length > 0 ? savedProducts : defaultProducts;
+const initialCart = storageService.getCart();
 
 if (savedProducts.length === 0) {
   storageService.saveProducts(defaultProducts);
@@ -117,7 +115,7 @@ export const state = {
   view: "shop",
   products: initialProducts,
   filtered: [...initialProducts], // Esto asegura que la grilla no arranque vacía
-  cart: [],
+ cart: initialCart, // <--- CARGA EL CARRITO GUARDADO
   cartOpen: false,
   searchTerm: "",
   auth: { isAuth: false, role: null, username: "" },
@@ -134,5 +132,9 @@ export function addToStateCart(product) {
   } else {
     state.cart.push({ ...product, quantity: 1 });
   }
+
+  // 2. GUARDAR: Persistimos el cambio en el LocalStorage
+  storageService.saveCart(state.cart);
+  
   notifier.show(`🛒 ${product.name} añadido`);
-}
+}  

@@ -1,3 +1,4 @@
+// OrderPanel.js - Panel de Pedidos para Gerencia (Actualizado con Auditoría de Stock)
 import { state } from "../js/app.js";
 import { storageService } from "../services/storageService.js";
 
@@ -5,116 +6,115 @@ export function OrderPanel(renderCallback) {
     const div = document.createElement("div");
     div.className = "panel";
 
-    // Obtenemos los datos frescos
     const leads = storageService.getLeads();
 
-    // --- 0. BARRA DE SINCRONIZACIÓN (Gerencia) ---
+    // --- 0. BARRA DE SINCRONIZACIÓN ---
     const syncBar = document.createElement("div");
     syncBar.style.cssText = "display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-bottom:15px; font-size:0.85em; color:var(--secondary);";
-    
     const lastSync = localStorage.getItem("lastSync_Gerente") || "No sincronizado";
 
     syncBar.innerHTML = `
         <span>Visto por última vez: <b id="sync-time">${lastSync}</b></span>
-        <button id="btn-sync" style="padding: 5px 12px; cursor: pointer; border-radius: 4px; border: 1px solid var(--primary); background: white; color: var(--primary); font-weight: bold; transition: 0.3s;">
+        <button id="btn-sync" style="padding: 5px 12px; cursor: pointer; border-radius: 4px; border: 1px solid var(--primary); background: white; color: var(--primary); font-weight: bold;">
             🔄 Sincronizar
         </button>
     `;
 
-    syncBar.querySelector("#btn-sync").onclick = (e) => {
-        const btn = e.currentTarget;
-        btn.style.opacity = "0.5";
-        const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        localStorage.setItem("lastSync_Gerente", now);
-        
-        setTimeout(() => {
-            renderCallback(); 
-        }, 300);
+    syncBar.querySelector("#btn-sync").onclick = () => {
+        localStorage.setItem("lastSync_Gerente", new Date().toLocaleTimeString());
+        renderCallback();
     };
 
     // --- 1. CABECERA ---
     const header = document.createElement("div");
-    header.className = "row";
     header.style.cssText = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;";
     header.innerHTML = `
-        <h2>Panel de Pedidos (Gerencia)</h2>
-        <button class="danger" id="logout-btn">Salir (Gerencia) </button> 
+        <h2 style="margin:0;">Panel de Gestión (Gerencia)</h2>
+        <button class="danger" id="logout-btn">Salir</button> 
     `;
 
-    // --- 2. CONTENIDO DE LA TABLA ---
+    // --- 2. NUEVO: VISTA RÁPIDA DE INVENTARIO PARA GERENTE ---
+    const inventoryAudit = document.createElement("div");
+    inventoryAudit.className = "card";
+    inventoryAudit.style.marginBottom = "25px";
+    inventoryAudit.innerHTML = `
+        <h4 style="margin-bottom:15px;">📋 Auditoría de Inventario Real</h4>
+        <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px;">
+            ${state.products.map(p => `
+                <div style="min-width: 140px; background: #fff; border: 1px solid #eee; padding: 10px; border-radius: 8px; text-align: center;">
+                    <img src="${p.image || 'https://via.placeholder.com/50'}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; margin-bottom: 5px;">
+                    <div style="font-size: 0.8em; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.name}</div>
+                    <div style="color: ${p.stock <= 3 ? 'red' : 'var(--success)'}; font-size: 0.9em; font-weight: bold;">
+                        Stock: ${p.stock || 0}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+
+    // --- 3. TABLA DE GESTIÓN DE PEDIDOS ---
     const content = document.createElement("div");
     content.className = "card";
     content.innerHTML = `
-        <h4>Control de Gestión y Auditoría</h4>
+        <h4>Control de Pedidos y Salida de Mercancía</h4>
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse;">
                 <thead>
-                    <tr style="text-align: left; border-bottom: 2px solid #eee;">
-                        <th style="padding: 10px;">Folio / Fecha</th>
-                        <th style="padding: 10px;">Cliente</th>
-                        <th style="padding: 10px;">Total</th>
-                        <th style="padding: 10px; text-align: center;">Estado / Auditoría</th>
+                    <tr style="text-align: left; border-bottom: 2px solid #eee; font-size: 0.9em;">
+                        <th style="padding: 10px;">Pedido / Fecha</th>
+                        <th style="padding: 10px;">Detalle del Pedido</th>
+                        <th style="padding: 10px;">Cliente / Total</th>
+                        <th style="padding: 10px; text-align: center;">Estado Operativo</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${leads.length === 0 ? '<tr><td colspan="4" style="text-align:center; padding:20px;">No hay pedidos en sistema</td></tr>' : 
+                    ${leads.length === 0 ? '<tr><td colspan="4" style="text-align:center; padding:20px;">No hay pedidos</td></tr>' : 
                     leads.map((l) => {
                         const isDeleted = l.deleted === true;
                         return `
-                        <tr style="border-bottom: 1px solid #eee; 
-                                   background: ${isDeleted ? '#fff5f5' : (l.completed ? '#f8fff9' : 'transparent')};
-                                   ${isDeleted ? 'opacity: 0.6; text-decoration: line-through;' : ''}">
+                        <tr style="border-bottom: 1px solid #eee; background: ${isDeleted ? '#fff5f5' : (l.completed ? '#f8fff9' : 'transparent')};">
                             <td style="padding: 10px;">
-                                <strong>#${l.id}</strong>
-                                ${isDeleted ? `<br><small style="color:red; font-weight:bold; text-decoration:none !important; display:inline-block;">[ELIMINADO POR ADMIN]</small>` : ""}
-                                <br><small>${l.date || ''} ${l.time || ''}</small>
+                                <strong>#${l.id}</strong><br>
+                                <small>${l.date || ''} ${l.time || ''}</small>
+                                ${isDeleted ? `<br><b style="color:red; font-size:0.7em;">[ANULADO]</b>` : ''}
                             </td>
-                            <td style="padding: 10px;"><strong>${l.customer || 'S/N'}</strong></td>
-                            <td style="padding: 10px;">$${(l.total || 0).toLocaleString()}</td>
+                            <td style="padding: 10px; font-size: 0.85em;">
+                                ${l.items ? l.items.map(i => `• ${i.name} (x${i.quantity})`).join('<br>') : 'Sin detalle'}
+                            </td>
+                            <td style="padding: 10px;">
+                                <strong>${l.customer}</strong><br>
+                                <span style="color:var(--success); font-weight:bold;">$${(l.total || 0).toLocaleString()}</span>
+                            </td>
                             <td style="padding: 10px; text-align: center;">
-                                ${isDeleted ? `
-                                    <small style="text-decoration:none !important; display:block;">Anulado por: <b>${l.deletedBy}</b></small>
-                                ` : `
+                                ${isDeleted ? `<small>Por: ${l.deletedBy}</small>` : `
                                     <button class="${l.completed ? '' : 'btn-toggle-status'}" data-id="${l.id}" 
                                         ${l.completed ? 'disabled' : ''}
-                                        style="cursor: ${l.completed ? 'default' : 'pointer'}; border: none; padding: 8px 12px; border-radius: 20px; 
-                                        background: ${l.completed ? 'var(--success)' : '#ccc'}; color: black;
-                                        opacity: ${l.completed ? '0.8' : '1'};">
-                                        ${l.completed ? '✅ Ejecutado' : '⏳ Marcar OK'}
+                                        style="cursor: ${l.completed ? 'default' : 'pointer'}; border: none; padding: 6px 15px; border-radius: 4px; 
+                                        background: ${l.completed ? 'var(--success)' : 'var(--primary)'}; color: white; font-size:0.85em;">
+                                        ${l.completed ? '✅ Despachado' : '🚚 Despachar'}
                                     </button>
-                                    ${l.completedBy ? `<br><small style="color: #666; font-size: 0.75em;">Marcado por: <b>${l.completedBy}</b></small>` : ''}
+                                    ${l.completedBy ? `<br><small style="font-size: 0.7em;">Auditoría: ${l.completedBy}</small>` : ''}
                                 `}
                             </td>
                         </tr>
-                    `}).join("")}
+                        `;
+                    }).reverse().join("")}
                 </tbody>
             </table>
         </div>
     `;
 
-    // --- LOGICA DE EVENTOS (PROTEGIDA) ---
+    // --- LÓGICA DE EVENTOS ---
     div.addEventListener("click", (e) => {
         if (e.target.classList.contains("btn-toggle-status")) {
             const id = String(e.target.getAttribute("data-id"));
             const currentLeads = storageService.getLeads();
-            const index = currentLeads.findIndex((l) => String(l.id) === id);
+            const pedido = currentLeads.find((l) => String(l.id) === id);
             
-            if (index !== -1) {
-                const pedido = currentLeads[index];
-
-                // 1. Doble check de seguridad: No operamos sobre eliminados ni ya completados
-                if (pedido.deleted || pedido.completed) return;
-
-                // 2. Advertencia de auditoría
-                const confirmacion = confirm(
-                    `¿Confirmas que el pedido #${pedido.id} ha sido entregado?\n\n` +
-                    `Esta acción quedará registrada bajo tu firma (Gerente) y el registro se cerrará por seguridad.`
-                );
-
-                if (confirmacion) {
+            if (pedido && !pedido.deleted && !pedido.completed) {
+                if (confirm(`¿Gerencia confirma la salida del Pedido #${pedido.id}?`)) {
                     pedido.completed = true;
                     pedido.completedBy = "Gerente";
-                    
                     localStorage.setItem("leads", JSON.stringify(currentLeads));
                     renderCallback();
                 }
@@ -123,18 +123,16 @@ export function OrderPanel(renderCallback) {
     });
 
     // Ensamblaje
-    div.append(syncBar, header, content);
+    div.append(syncBar, header, inventoryAudit, content);
 
     // Logout
     setTimeout(() => {
         const btn = div.querySelector('#logout-btn');
-        if(btn) {
-            btn.onclick = () => {
-                state.auth.isAuth = false;
-                state.view = "shop";
-                renderCallback();
-            };
-        }
+        if(btn) btn.onclick = () => {
+            state.auth.isAuth = false;
+            state.view = "shop";
+            renderCallback();
+        };
     }, 0);
 
     return div;

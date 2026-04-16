@@ -10,7 +10,6 @@ export function AdminPanel(renderCallback) {
   let editingId = null;
   const leads = storageService.getLeads();
   
-  // DETECTOR DE RANGO: Verificamos si es Superusuario
   const isSuper = state.auth.role === "superuser";
 
   // --- 0. BARRA DE SINCRONIZACIÓN ---
@@ -93,7 +92,7 @@ export function AdminPanel(renderCallback) {
   mainActions.append(exportLeadsBtn, exportProductsBtn);
   top.append(mainActions, logout);
 
-  // --- 3. FORMULARIO DE PRODUCTOS ---
+  // --- 3. FORMULARIO DE PRODUCTOS (MODIFICADO CON STOCK) ---
   const addBox = document.createElement("div");
   addBox.className = "card";
   addBox.innerHTML = `
@@ -101,8 +100,7 @@ export function AdminPanel(renderCallback) {
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
         <input id="pname" placeholder="Nombre del producto">
         <input id="pprice" placeholder="Precio ($)" type="number">
-        <textarea id="pdesc" placeholder="Descripción completa" style="grid-column: span 2; height: 80px;"></textarea>
-        <div style="grid-column: span 2;">
+        <input id="pstock" placeholder="Cantidad en Inventario (Stock)" type="number"> <textarea id="pdesc" placeholder="Descripción completa" style="grid-column: span 1; height: 38px;"></textarea> <div style="grid-column: span 2;">
             <label style="display: block; margin-bottom: 5px; font-size: 0.9em; color: var(--secondary);">Imagen del producto:</label>
             <input id="pimg" type="file" accept="image/*">
         </div>
@@ -119,10 +117,11 @@ export function AdminPanel(renderCallback) {
   addBtn.onclick = () => {
     const name = sanitize(document.getElementById("pname").value);
     const price = parseFloat(document.getElementById("pprice").value);
+    const stock = parseInt(document.getElementById("pstock").value); // CAMBIO AQUÍ
     const desc = sanitize(document.getElementById("pdesc").value);
     const file = document.getElementById("pimg").files[0];
 
-    if (!name || isNaN(price)) return alert("Nombre y precio obligatorios.");
+    if (!name || isNaN(price) || isNaN(stock)) return alert("Nombre, precio y stock obligatorios.");
 
     const saveAndRefresh = (imgBase64 = "") => {
       if (editingId) {
@@ -130,13 +129,18 @@ export function AdminPanel(renderCallback) {
         if (index !== -1) {
           state.products[index] = {
             ...state.products[index],
-            name, price, description: desc,
+            name, price, stock, description: desc, // CAMBIO AQUÍ
             image: imgBase64 || state.products[index].image,
           };
         }
         editingId = null;
       } else {
-        state.products.push({ id: crypto.randomUUID(), name, price, description: desc, image: imgBase64 });
+        state.products.push({ 
+            id: crypto.randomUUID(), 
+            name, price, stock, // CAMBIO AQUÍ
+            description: desc, 
+            image: imgBase64 
+        });
       }
       storageService.saveProducts(state.products);
       state.filtered = [...state.products];
@@ -153,67 +157,94 @@ export function AdminPanel(renderCallback) {
   };
   addBox.appendChild(addBtn);
 
-  // --- 4. TABLA DE PRODUCTOS ---
+  // --- 4. TABLA DE PRODUCTOS (MODIFICADA CON IMAGEN Y STOCK) ---
   const productsWrap = document.createElement("div");
   productsWrap.className = "card";
   productsWrap.innerHTML = `
-    <h4>Gestión de Inventario</h4>
-    <table>
-      <thead>
-        <tr>
-          <th>Producto / Descripción</th>
-          <th>Precio</th>
-          <th style="text-align:center">Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${state.products.map(p => `
-          <tr>
-            <td>
-                <strong>${p.name}</strong><br>
-                <small style="color:var(--secondary)">${p.description || "Sin descripción"}</small>
-            </td>
-            <td>$${p.price}</td>
-            <td style="text-align:center">
-                <button class="secondary btn-edit" data-id="${p.id}">Editar</button>
-                <button class="danger btn-del" data-id="${p.id}">Borrar</button>
-            </td>
+    <h4>Inventario Actual</h4>
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="text-align: left; border-bottom: 2px solid #eee;">
+            <th style="padding: 10px;">Vista</th> <th style="padding: 10px;">Producto / Descripción</th>
+            <th style="padding: 10px;">Precio</th>
+            <th style="padding: 10px;">Stock</th>
+            <th style="padding: 10px; text-align:center">Acciones</th>
           </tr>
-        `).join("")}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          ${state.products.map(p => `
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 10px;">
+                  <img src="${p.image || 'https://via.placeholder.com/50'}" 
+                       style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;">
+              </td>
+              <td style="padding: 10px;">
+                  <strong>${p.name}</strong><br>
+                  <small style="color:var(--secondary)">${p.description || "Sin descripción"}</small>
+              </td>
+              <td style="padding: 10px;">$${p.price.toLocaleString()}</td>
+              <td style="padding: 10px;">
+                  <b style="color: ${p.stock <= 5 ? 'var(--danger)' : 'var(--success)'}">${p.stock || 0}</b>
+              </td>
+              <td style="padding: 10px; text-align:center">
+                  <button class="secondary btn-edit" data-id="${p.id}" style="padding: 5px 10px;">Editar</button>
+                  <button class="danger btn-del" data-id="${p.id}" style="padding: 5px 10px;">Borrar</button>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
   `;
-
+  // --- NUEVO: ESCUCHADOR DE EVENTOS PARA PRODUCTOS (Faltaba en tu código) ---
   productsWrap.addEventListener("click", (e) => {
-    const id = String(e.target.getAttribute("data-id"));
-    if (!id || id === "null") return;
-    if (e.target.classList.contains("btn-del")) {
-      if (confirm("¿Eliminar producto definitivamente?")) {
+    // Usamos closest para asegurar que capturemos el botón aunque se haga clic en el icono o texto
+    const btnEdit = e.target.closest(".btn-edit");
+    const btnDel = e.target.closest(".btn-del");
+
+    // LÓGICA PARA BORRAR
+    if (btnDel) {
+      const id = String(btnDel.getAttribute("data-id"));
+      if (confirm("¿Estás seguro de eliminar este producto definitivamente?")) {
         state.products = state.products.filter((p) => String(p.id) !== id);
         storageService.saveProducts(state.products);
         state.filtered = [...state.products];
-        renderCallback();
+        renderCallback(); // Recargamos la vista
       }
     }
-    if (e.target.classList.contains("btn-edit")) {
+
+    // LÓGICA PARA EDITAR
+    if (btnEdit) {
+      const id = String(btnEdit.getAttribute("data-id"));
       const p = state.products.find((x) => String(x.id) === id);
+      
       if (p) {
-        editingId = p.id;
+        editingId = p.id; // Activamos el modo edición con este ID
+        
+        // Llenamos el formulario con los datos actuales
         document.getElementById("pname").value = p.name;
         document.getElementById("pprice").value = p.price;
+        document.getElementById("pstock").value = p.stock || 0;
         document.getElementById("pdesc").value = p.description || "";
+        
+        // Cambiamos visualmente el formulario
         document.getElementById("form-title").textContent = "✏️ Editando: " + p.name;
-        document.getElementById("btn-save").textContent = "Actualizar Cambios";
+        const saveBtn = document.getElementById("btn-save");
+        saveBtn.textContent = "Actualizar Cambios";
+        saveBtn.className = "secondary"; // Cambiamos color para notar el modo edición
+        
+        // Subimos al inicio para que el usuario vea el formulario lleno
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     }
   });
-
-  // --- 5. TABLA DE LEADS (CON LÓGICA DE SUPERUSUARIO) ---
+  
+  // --- 5. TABLA DE LEADS ---
   const leadsWrap = document.createElement("div");
   leadsWrap.className = "card";
   leadsWrap.innerHTML = `
-    <h4>Ventas Recibidas</h4>
+    <h4>Historial de Ventas</h4>
     <table>
       <thead>
         <tr>
@@ -227,7 +258,6 @@ export function AdminPanel(renderCallback) {
       <tbody>
         ${leads.map((l) => {
           const isDeleted = l.deleted === true;
-          // SUPERPODER: El botón solo se bloquea si está completado Y NO eres superusuario
           const canToggle = !l.completed || isSuper;
           const canDelete = !l.completed || isSuper;
 
@@ -277,9 +307,7 @@ export function AdminPanel(renderCallback) {
     if (index === -1) return;
     const pedido = currentLeads[index];
 
-    // --- ACCIÓN: COMPLETAR / REVERTIR ---
     if (e.target.classList.contains("btn-check-lead")) {
-        // Lógica de reversión exclusiva Superuser
         if (pedido.completed && isSuper) {
             if (confirm("MODO MAESTRO: ¿Deseas reabrir este pedido y eliminar la marca de ejecución?")) {
                 pedido.completed = false;
@@ -290,7 +318,6 @@ export function AdminPanel(renderCallback) {
             return;
         }
 
-        // Lógica normal
         if (confirm(`¿Confirmas que el pedido #${pedido.id} ha sido procesado?`)) {
             pedido.completed = true;
             pedido.completedBy = isSuper ? "SUPERUSER" : "Administrador";
@@ -299,7 +326,6 @@ export function AdminPanel(renderCallback) {
         }
     }
 
-    // --- ACCIÓN: ANULAR ---
     if (e.target.classList.contains("btn-del-lead")) {
       const confirmMsg = (pedido.completed && isSuper) 
           ? "⚠️ EL PEDIDO YA ESTÁ EJECUTADO. ¿Deseas anularlo de todas formas (Modo Superusuario)?" 
@@ -313,7 +339,6 @@ export function AdminPanel(renderCallback) {
       }
     }
 
-    // --- ACCIÓN: RESTABLECER ---
     if (e.target.classList.contains("btn-restore-lead")) {
         if (confirm("¿Restablecer este pedido al historial activo?")) {
             pedido.deleted = false;

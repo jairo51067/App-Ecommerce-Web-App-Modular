@@ -58,4 +58,4 @@ export const storageService = {
   clearCart() {
     localStorage.removeItem("shop_cart");
   },
-};
+}; 

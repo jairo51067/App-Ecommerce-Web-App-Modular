@@ -9,7 +9,6 @@ export function Checkout(renderCallback) {
 
     div.innerHTML = `
         <div class="checkout-container" style="max-width: 800px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-            
             <div class="order-summary" style="background: #f8f9fa; padding: 20px; border-radius: 10px;">
                 <h3>Resumen de tu compra</h3>
                 <hr>
@@ -33,10 +32,8 @@ export function Checkout(renderCallback) {
                 <form id="form-checkout">
                     <label>Nombre Completo</label>
                     <input type="text" id="name" placeholder="Ej. Juan Pérez" required style="width:100%; margin-bottom:15px; padding:10px;">
-                    
                     <label>Dirección de Entrega</label>
                     <input type="text" id="address" placeholder="Calle, Ciudad, Referencia" required style="width:100%; margin-bottom:15px; padding:10px;">
-                    
                     <label>WhatsApp / Teléfono</label>
                     <input type="tel" id="phone" placeholder="Ej. 04241234567" required style="width:100%; margin-bottom:15px; padding:10px;">
                     
@@ -63,6 +60,18 @@ export function Checkout(renderCallback) {
         const hora = ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
         const nroPedido = String(Date.now()).slice(-5);
 
+        // --- 1. LÓGICA DE ACTUALIZACIÓN DE STOCK ---
+        state.cart.forEach(itemEnCarrito => {
+            const productoInventario = state.products.find(p => String(p.id) === String(itemEnCarrito.id));
+            if (productoInventario) {
+                productoInventario.stock = Math.max(0, (productoInventario.stock || 0) - itemEnCarrito.quantity);
+            }
+        });
+
+        storageService.saveProducts(state.products);
+        state.filtered = [...state.products];
+
+        // --- 2. GENERAR EL LEAD ---
         const newOrder = {
             id: nroPedido,
             customer: name,
@@ -75,8 +84,7 @@ export function Checkout(renderCallback) {
         };
         storageService.saveLead(newOrder);
 
-        // --- CONSTRUCCIÓN DEL MENSAJE PROFESIONAL ---
-        // Usamos una estructura de array y join por legibilidad
+        // --- 3. MENSAJE PROFESIONAL (COMPLETO) ---
         let textoMsg = `*ORDEN Nro ${nroPedido}* 📦\n`;
         textoMsg += `📅 *Fecha:* ${fecha}\n`;
         textoMsg += `⏰ *Hora:* ${hora}\n`;
@@ -100,16 +108,16 @@ export function Checkout(renderCallback) {
         textoMsg += `_Confirmaremos tu pago y te notificaremos cuando tu pedido esté listo._\n`;
         textoMsg += `¡Gracias por tu compra! ✨`;
 
-        // 3. ENCRIPTAR PARA URL (Seguridad para caracteres especiales)
         const encodedMessage = encodeURIComponent(textoMsg);
         const myWhatsAppNumber = "584245231898"; 
 
-        // 4. Limpiar carrito ANTES de salir
+        // 4. Limpieza y Navegación
         state.cart = [];
+        if (storageService.clearCart) storageService.clearCart(); 
         state.view = 'shop';
         renderCallback();
 
-        // 5. Abrir WhatsApp
+        // 5. Envío
         window.open(`https://wa.me/${myWhatsAppNumber}?text=${encodedMessage}`, '_blank');
         alert(`¡Pedido #${nroPedido} generado con éxito! Redirigiendo a WhatsApp...`);
     };

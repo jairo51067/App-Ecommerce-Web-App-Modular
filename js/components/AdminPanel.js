@@ -1,10 +1,10 @@
+// js/components/AdminPanel.js
 import { state } from "../app.js"; 
 import { storageService } from "../services/storageService.js";
 
 export function AdminPanel(renderCallback) {
     const div = document.createElement("div");
     div.className = "admin-panel";
-    const isSuper = state.auth.role === 'superuser';
     const leads = storageService.getLeads();
 
     div.innerHTML = `
@@ -40,7 +40,7 @@ export function AdminPanel(renderCallback) {
 
                     <div class="card shadow" style="margin-top: 20px; border-top: 4px solid #3498db;">
                         <h3>💰 Verificación de Pagos</h3>
-                        <p style="font-size: 0.85em; color: #666;">Pedidos pendientes de validación administrativa:</p>
+                        <p style="font-size: 0.85em; color: #666;">Pedidos por validar:</p>
                         <ul style="list-style: none; padding: 0; margin-top: 10px;">
                             ${leads.filter(l => l.status === 'Pagado').map(l => `
                                 <li style="padding: 10px; background: #f0f7ff; border-radius: 5px; margin-bottom: 5px; font-size: 0.9em;">
@@ -70,7 +70,7 @@ export function AdminPanel(renderCallback) {
                                         <tr style="border-bottom: 1px solid #eee;">
                                             <td style="padding: 10px;"><b>${p.name}</b></td>
                                             <td style="padding: 10px;">$${p.price}</td>
-                                            <td style="padding: 10px;">${p.stock}</td>
+                                            <td style="padding: 10px;">${p.stock <= 5 ? `<span style="color:red; font-weight:bold;">${p.stock} ⚠️</span>` : p.stock}</td>
                                             <td style="padding: 10px;">
                                                 <button class="btn-edit-p secondary" data-id="${p.id}">✏️</button>
                                                 <button class="btn-delete-p danger" data-id="${p.id}">🗑️</button>
@@ -95,25 +95,31 @@ export function AdminPanel(renderCallback) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${leads.map(l => `
-                                        <tr style="border-bottom: 1px solid #eee;">
+                                    ${leads.map(l => {
+                                        const isCancelled = l.status === 'Cancelado';
+                                        return `
+                                        <tr style="border-bottom: 1px solid #eee; ${isCancelled ? 'opacity: 0.6;' : ''}">
                                             <td style="padding: 10px;">#${l.id}</td>
                                             <td style="padding: 10px;">${l.customer}</td>
                                             <td style="padding: 10px;">
-                                                <span style="color: ${l.status === 'Despachado' ? 'green' : 'orange'}; font-weight: bold;">
+                                                <span style="color: ${getStatusColor(l.status)}; font-weight: bold;">
                                                     ${l.status}
                                                 </span>
+                                                ${l.history ? `<div style="font-size: 0.7em; color: #888;">Por: ${l.history[l.history.length-1].user}</div>` : ''}
                                             </td>
                                             <td style="padding: 10px;">
-                                                <select class="admin-status-reset" data-id="${l.id}" style="padding: 3px;">
-                                                    <option value="" disabled selected>Cambiar estado...</option>
-                                                    <option value="Pendiente">🔄 Restablecer a Pendiente</option>
-                                                    <option value="Pagado">💰 Marcar como Pagado</option>
-                                                    <option value="Cancelado">❌ Cancelar Pedido</option>
-                                                </select>
+                                                ${isCancelled ? 
+                                                    '<span style="font-size:0.8em; color:red;">BLOQUEADO</span>' : 
+                                                    `<select class="admin-status-reset" data-id="${l.id}" style="padding: 3px;">
+                                                        <option value="" disabled selected>Cambiar...</option>
+                                                        <option value="Pendiente">🔄 Restablecer a Pendiente</option>
+                                                        <option value="Pagado">💰 Marcar como Pagado</option>
+                                                        <option value="Cancelado">❌ Cancelar (Devolver Stock)</option>
+                                                    </select>`
+                                                }
                                             </td>
                                         </tr>
-                                    `).reverse().join('')}
+                                    `}).reverse().join('')}
                                 </tbody>
                             </table>
                         </div>
@@ -123,6 +129,14 @@ export function AdminPanel(renderCallback) {
         </div>
     `;
 
+    // --- FUNCIONES INTERNAS ---
+    function getStatusColor(status) {
+        if(status === 'Despachado') return 'green';
+        if(status === 'Cancelado') return 'red';
+        if(status === 'Pagado') return '#2980b9';
+        return 'orange';
+    }
+
     // --- LÓGICA DE EVENTOS ---
 
     // 1. EDITAR PRODUCTO (Cargar datos al form)
@@ -130,7 +144,6 @@ export function AdminPanel(renderCallback) {
         btn.onclick = () => {
             const id = btn.getAttribute("data-id");
             const prod = state.products.find(p => String(p.id) === String(id));
-            
             if (prod) {
                 div.querySelector("#form-title").innerText = "✏️ Editando: " + prod.name;
                 div.querySelector("#p-id").value = prod.id;
@@ -148,7 +161,7 @@ export function AdminPanel(renderCallback) {
     // 2. CANCELAR EDICIÓN
     div.querySelector("#btn-cancel-edit").onclick = () => renderCallback();
 
-    // 3. GUARDAR / ACTUALIZAR (Lógica dual)
+    // 3. GUARDAR / ACTUALIZAR PRODUCTO
     div.querySelector("#product-form").onsubmit = (e) => {
         e.preventDefault();
         const pId = div.querySelector("#p-id").value;
@@ -156,36 +169,27 @@ export function AdminPanel(renderCallback) {
         
         const processSave = (imgData = null) => {
             let products = storageService.getProducts();
-            
-            if (pId) { // MODO EDICIÓN
-                products = products.map(p => {
-                    if (String(p.id) === String(pId)) {
-                        return {
-                            ...p,
-                            name: div.querySelector("#p-name").value,
-                            price: parseFloat(div.querySelector("#p-price").value),
-                            stock: parseInt(div.querySelector("#p-stock").value),
-                            description: div.querySelector("#p-desc").value,
-                            image: imgData || p.image, // Mantiene la vieja si no hay nueva
-                            updatedBy: state.auth.username
-                        };
-                    }
-                    return p;
-                });
+            if (pId) { // EDITAR
+                products = products.map(p => String(p.id) === String(pId) ? {
+                    ...p,
+                    name: div.querySelector("#p-name").value,
+                    price: parseFloat(div.querySelector("#p-price").value),
+                    stock: parseInt(div.querySelector("#p-stock").value),
+                    description: div.querySelector("#p-desc").value,
+                    image: imgData || p.image
+                } : p);
                 alert("✅ Producto actualizado");
-            } else { // MODO NUEVO
+            } else { // NUEVO
                 products.push({
                     id: Date.now(),
                     name: div.querySelector("#p-name").value,
                     price: parseFloat(div.querySelector("#p-price").value),
                     stock: parseInt(div.querySelector("#p-stock").value),
                     description: div.querySelector("#p-desc").value,
-                    image: imgData || "",
-                    createdBy: state.auth.username
+                    image: imgData || ""
                 });
                 alert("✅ Producto creado");
             }
-
             storageService.saveProducts(products);
             state.products = products;
             state.filtered = [...products];
@@ -201,27 +205,21 @@ export function AdminPanel(renderCallback) {
         }
     };
 
-    // 4. RESTABLECER ESTADOS (Poder Administrativo)
+    // 4. CAMBIO DE ESTADO DE PEDIDOS (Auditoría)
     div.querySelectorAll(".admin-status-reset").forEach(select => {
         select.onchange = (e) => {
             const orderId = e.target.getAttribute("data-id");
             const newStatus = e.target.value;
-            
             if (confirm(`¿Confirmar cambio de estado del pedido #${orderId} a ${newStatus}?`)) {
-                const allLeads = storageService.getLeads();
-                const index = allLeads.findIndex(l => String(l.id) === String(orderId));
-                
-                if (index !== -1) {
-                    allLeads[index].status = newStatus;
-                    allLeads[index].adminAudit = state.auth.username; // Trazabilidad de quién corrigió
-                    storageService.updateLead(allLeads);
-                    renderCallback();
-                }
+                storageService.updateLeadStatus(orderId, newStatus, state.auth.name);
+                // Actualizamos stock local para que la tabla de inventario se refresque
+                state.products = storageService.getProducts();
+                renderCallback();
             }
         };
     });
 
-    // Eventos Básicos (Borrar, Logout, Go Shop)
+    // 5. BORRAR PRODUCTO
     div.querySelectorAll(".btn-delete-p").forEach(btn => {
         btn.onclick = () => {
             if (confirm("¿Eliminar definitivamente?")) {

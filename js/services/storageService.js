@@ -1,15 +1,13 @@
 // js/services/storageService.js
 
-// 1. CONSTANTES DE DOMINIO (Para evitar errores de tipeo en las llaves de LocalStorage)
 const KEYS = {
-    PRODUCTS: 'APP_INVENTORY_GLOBAL', // SSOT del Inventario
-    LEADS: 'APP_ORDERS_HISTORY',      // Historial de Ventas
-    USERS: 'APP_USERS_DB',            // Base de datos de credenciales
-    AUTH: 'APP_CURRENT_SESSION',      // Sesión activa
-    CART: 'APP_LOCAL_CART'            // Carrito del cliente
+    PRODUCTS: 'APP_INVENTORY_GLOBAL',
+    LEADS: 'APP_ORDERS_HISTORY',
+    USERS: 'APP_USERS_DB',
+    AUTH: 'APP_CURRENT_SESSION',
+    CART: 'APP_LOCAL_CART'
 };
 
-// 2. INICIALIZACIÓN DE DATOS MAESTROS (Si el sistema está en blanco)
 const initializeApp = () => {
     if (!localStorage.getItem(KEYS.USERS)) {
         const defaultUsers = [
@@ -23,26 +21,20 @@ const initializeApp = () => {
     if (!localStorage.getItem(KEYS.LEADS)) localStorage.setItem(KEYS.LEADS, JSON.stringify([]));
 };
 
-// Ejecutamos la inicialización al cargar el servicio
 initializeApp();
 
-// 3. EL SERVICIO CENTRALIZADO
 export const storageService = {
 
-    // ==========================================
-    // MÓDULO DE INVENTARIO (Single Source of Truth)
-    // ==========================================
+    // --- INVENTARIO ---
     getProducts: () => JSON.parse(localStorage.getItem(KEYS.PRODUCTS)) || [],
     
     saveProducts: (productsArray) => {
         localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(productsArray));
     },
 
-    // LA FUNCIÓN MAESTRA DE STOCK: Reemplaza a updateInventory suelta en app.js
-    // type: 'subtract' (Venta) | 'add' (Devolución/Anulación)
+    // Centraliza el movimiento de stock
     modifyStock: (items, type = 'subtract') => {
         const inventory = storageService.getProducts();
-        
         items.forEach(item => {
             const product = inventory.find(p => String(p.id) === String(item.id));
             if (product) {
@@ -53,51 +45,76 @@ export const storageService = {
                 }
             }
         });
-        
         storageService.saveProducts(inventory);
-        return inventory; // Retorna el inventario fresco
+        return inventory;
     },
 
-    // ==========================================
-    // MÓDULO DE PEDIDOS (Inmutabilidad y Auditoría)
-    // ==========================================
+    // --- PEDIDOS Y AUDITORÍA ---
     getLeads: () => JSON.parse(localStorage.getItem(KEYS.LEADS)) || [],
     
     saveLead: (orderObject) => {
         const leads = storageService.getLeads();
+        // Inicializamos el historial del pedido
+        orderObject.history = [{
+            date: new Date().toLocaleString(),
+            user: "Sistema (Cliente)",
+            action: "Pedido Creado",
+            status: "Pendiente"
+        }];
         leads.push(orderObject);
         localStorage.setItem(KEYS.LEADS, JSON.stringify(leads));
     },
 
+    /**
+     * MÉTODO MAESTRO DE CAMBIO DE ESTADO
+     * Maneja la auditoría y la devolución de stock si se cancela.
+     */
+    updateLeadStatus: (orderId, newStatus, currentUser) => {
+        const leads = storageService.getLeads();
+        const orderIndex = leads.findIndex(l => String(l.id) === String(orderId));
+        
+        if (orderIndex === -1) return;
+
+        const order = leads[orderIndex];
+
+        // 1. Si ya estaba cancelado, no permitir más cambios (Inmutabilidad)
+        if (order.status === 'Cancelado') {
+            console.warn("Intento de modificar un pedido ya cancelado y bloqueado.");
+            return;
+        }
+
+        // 2. Si el nuevo estado es "Cancelado", devolvemos el stock automáticamente
+        if (newStatus === 'Cancelado') {
+            storageService.modifyStock(order.items, 'add');
+        }
+
+        // 3. Registrar en el historial para auditoría
+        order.history.push({
+            date: new Date().toLocaleString(),
+            user: currentUser,
+            action: `Estado cambiado a ${newStatus}`,
+            status: newStatus
+        });
+
+        // 4. Actualizar estado y guardar
+        order.status = newStatus;
+        leads[orderIndex] = order;
+        localStorage.setItem(KEYS.LEADS, JSON.stringify(leads));
+        
+        return order;
+    },
+
     updateLead: (updatedLeadsArray) => {
-        // Uso directo para guardados masivos o actualizaciones de estado complejas
         localStorage.setItem(KEYS.LEADS, JSON.stringify(updatedLeadsArray));
     },
 
-    // ==========================================
-    // MÓDULO DE USUARIOS Y AUTENTICACIÓN (RBAC)
-    // ==========================================
+    // --- SESIÓN Y USUARIOS ---
     getUsers: () => JSON.parse(localStorage.getItem(KEYS.USERS)) || [],
-    
-    saveUsers: (usersArray) => {
-        localStorage.setItem(KEYS.USERS, JSON.stringify(usersArray));
-    },
+    getSession: () => JSON.parse(localStorage.getItem(KEYS.AUTH)) || { isAuth: false, role: 'guest' },
+    setSession: (sessionData) => localStorage.setItem(KEYS.AUTH, JSON.stringify(sessionData)),
+    clearSession: () => localStorage.removeItem(KEYS.AUTH),
 
-    getSession: () => {
-        return JSON.parse(localStorage.getItem(KEYS.AUTH)) || { isAuth: false, role: 'guest' };
-    },
-
-    setSession: (sessionData) => {
-        localStorage.setItem(KEYS.AUTH, JSON.stringify(sessionData));
-    },
-
-    clearSession: () => {
-        localStorage.removeItem(KEYS.AUTH);
-    },
-
-    // ==========================================
-    // MÓDULO DE CARRITO LOCAL
-    // ==========================================
+    // --- CARRITO ---
     getCart: () => JSON.parse(localStorage.getItem(KEYS.CART)) || [],
     saveCart: (cartArray) => localStorage.setItem(KEYS.CART, JSON.stringify(cartArray)),
     clearCart: () => localStorage.removeItem(KEYS.CART)

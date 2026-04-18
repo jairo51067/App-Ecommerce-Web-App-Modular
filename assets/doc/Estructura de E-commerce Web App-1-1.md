@@ -1,0 +1,30 @@
+
+└── 📁assets
+    └── 📁css
+        ├── styles.css
+    └── 📁doc
+    └── 📁img
+        ├── Apple.png
+        ├── Captura de pantalla 2026-04-14 133546.png
+        └── Laptop.png
+└── 📁js
+    └── 📁components
+        ├── AdminPanel.js
+        ├── Cart.js
+        ├── Checkout.js
+        ├── Header.js
+        ├── Login.js
+        ├── OrderPanel.js
+        ├── ProductCard.js
+        ├── ProductList.js
+    └── 📁services
+        ├── exportService.js
+        ├── notifier.js
+        ├── storageService.js
+    ├── app.js
+    └── main.js
+└── 📁utils
+    ├── sanitize.js
+    └── validator.js
+└── .gitignore
+└── index.html

@@ -1,4 +1,5 @@
-import { state } from '../js/app.js';
+// La forma correcta de "salir" de la carpeta components para buscar app.js
+import { state, render } from "../app.js";
 
 export function Header(renderCallback) {
     const header = document.createElement('div');
@@ -60,16 +61,26 @@ export function Header(renderCallback) {
         renderCallback();
     };
 
-    header.querySelector('#go-login').onclick = () => {
-        if (state.auth?.isAuth) {
-            // Si ya está logueado, lo mandamos a su vista según su rol
-            if (state.auth.role === 'admin') state.view = 'admin';
-            else if (state.auth.role === 'gerente' || state.auth.role === 'superuser') state.view = 'orders';
-        } else {
-            state.view = 'login';
+   // En el onclick de #go-login dentro de Header.js
+header.querySelector('#go-login').onclick = () => {
+    if (state.auth?.isAuth) {
+        // Usamos switch para mayor claridad
+        switch(state.auth.role) {
+            case 'superuser':
+            case 'admin':
+                state.view = 'admin';
+                break;
+            case 'manager':
+                state.view = 'order';
+                break;
+            default:
+                state.view = 'shop';
         }
-        renderCallback();
-    };
+    } else {
+        state.view = 'login';
+    }
+    renderCallback();
+};
 
     return header;
 } 

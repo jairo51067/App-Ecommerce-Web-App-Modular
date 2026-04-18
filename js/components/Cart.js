@@ -1,7 +1,9 @@
-import { state } from '../js/app.js';
+
+import { state, render } from "../app.js";
 import { notifier } from '../services/notifier.js';
 // 1. IMPORTANTE: Importamos el storageService
 import { storageService } from '../services/storageService.js';
+
 
 export function Cart(renderCallback) {
     const overlay = document.createElement('div');
@@ -105,13 +107,18 @@ export function Cart(renderCallback) {
         }
     });
 
-    overlay.onclick = () => {
-        state.cartOpen = false;
-        renderCallback();
-    };
+   // EVITAR QUE EL CLIC SE "FILTRE" AL FONDO
+sidebar.onclick = (e) => {
+    e.stopPropagation(); // Esto detiene el clic aquí
+};
+
+overlay.onclick = () => {
+    state.cartOpen = false;
+    renderCallback();
+};
 
     const container = document.createDocumentFragment();
     container.appendChild(overlay);
     container.appendChild(sidebar);
     return container;
-}
+} 

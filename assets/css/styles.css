@@ -279,15 +279,30 @@ header {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.5);
-    z-index: 9998; /* Justo debajo del sidebar */
-    display: none;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.7); /* Oscurece la tienda */
+    z-index: 9998; /* Un nivel abajo del sidebar */
+    display: block;
 }
 
 .cart-overlay.active {
     display: block;
+}
+
+/* El panel lateral */
+.cart-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 400px;
+    height: 100vh;
+    background: white;
+    box-shadow: -5px 0 15px rgba(0,0,0,0.3);
+    z-index: 9999; /* LA CAPA MÁS ALTA */
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
 }
 
 .cart-header {

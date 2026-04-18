@@ -36,4 +36,4 @@ export const exportService = {
     link.click();
     document.body.removeChild(link);
   }
-};
+}; 

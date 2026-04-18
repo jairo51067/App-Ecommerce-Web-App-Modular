@@ -15,7 +15,7 @@ app.append(headerContainer, mainContent);
 
 function render() {
     // 1. Limpieza total
-    headerContainer.innerHTML = '';
+    headerContainer.innerHTML = ''; 
     mainContent.innerHTML = '';
 
     // 2. Lógica de Protección de Rutas (Middleware)
